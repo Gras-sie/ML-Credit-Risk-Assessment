@@ -7,6 +7,7 @@ import pickle
 import os
 import warnings
 
+# === Initialize Dash App ===
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -17,61 +18,69 @@ app = dash.Dash(
 )
 app.title = "Credit Risk Predictor"
 
+#Path Configuration
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
 model_paths = {
     "random_forest": os.path.join(project_root, "Artifacts", "PLK", "random_forest_model.pkl"),
-    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.pkl")
+    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.json")  # Use .json format!
 }
-
-data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
 columns_path = os.path.join(project_root, "Artifacts", "PLK", "training_columns.pkl")
+data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
 
+#Library Compatibility Checks
 try:
     import xgboost
 except ImportError:
-    print("⚠️ Warning: xgboost is not installed. The XGBoost model will not be available.")
+    print("⚠️ xgboost is not installed. The XGBoost model will be skipped.")
     xgboost = None
 
 from sklearn import __version__ as sklearn_version
-expected_sklearn_version = "1.5.1"
-
-if sklearn_version != expected_sklearn_version:
+expected_version = "1.5.1"
+if sklearn_version != expected_version:
     warnings.warn(
-        f"⚠️ Inconsistent scikit-learn version: {sklearn_version}. "
-        f"The models were trained using scikit-learn {expected_sklearn_version}. "
-        f"This mismatch may lead to loading or prediction issues."
+        f"⚠️ scikit-learn version mismatch: expected {expected_version}, found {sklearn_version}. "
+        "This could lead to compatibility issues when loading models."
     )
 
+#Load Models and Data
 try:
     models = {}
+
     for key, path in model_paths.items():
-        if key == 'xgboost' and xgboost is None:
-            print(f"Skipping {key} model as xgboost is not installed.")
-            continue
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Model file not found: {path}")
-        with open(path, 'rb') as f:
-            models[key] = pickle.load(f)
+        if key == "xgboost":
+            if xgboost is None:
+                print("Skipping XGBoost model — library not installed.")
+                continue
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"XGBoost model file not found: {path}")
+            booster = xgboost.Booster()
+            booster.load_model(path)
+            models[key] = booster
+        else:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"Model file not found: {path}")
+            with open(path, "rb") as f:
+                models[key] = pickle.load(f)
 
     if not os.path.exists(columns_path):
-        raise FileNotFoundError(f"Columns file not found: {columns_path}")
-    with open(columns_path, 'rb') as f:
+        raise FileNotFoundError(f"Feature column file not found: {columns_path}")
+    with open(columns_path, "rb") as f:
         training_columns = pickle.load(f)
 
-    # Load data file
     if not os.path.exists(data_file_path):
         raise FileNotFoundError(f"Data file not found: {data_file_path}")
     full_data = pd.read_csv(data_file_path)
 
 except FileNotFoundError as e:
-    print(f"Error: {e}")
-    print("Please ensure all required files are in the correct directories:")
-    print(f"Models should be in: {os.path.dirname(model_paths['random_forest'])}")
-    print(f"Data should be in: {os.path.dirname(data_file_path)}")
+    print(f"🚫 Error: {e}")
+    print("Make sure all model and data files are correctly placed:")
+    print(f" - Models → {os.path.dirname(model_paths['random_forest'])}")
+    print(f" - Data   → {os.path.dirname(data_file_path)}")
     raise
 
+#Risk Flag to Description Helper
 def flag_to_risk(flag):
     return {
         "P1": "Low Risk - Likely Approved",
@@ -79,6 +88,7 @@ def flag_to_risk(flag):
         "P3": "High Risk - Likely Denied",
         "P4": "Critical Risk - Must Deny"
     }.get(flag, "Unknown")
+
 
 @app.callback(
     [Output("prediction-output", "children"),
