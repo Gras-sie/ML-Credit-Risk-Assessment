@@ -2,11 +2,11 @@ import dash
 from dash import dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
+import numpy as np
 import pickle
 import os
 import warnings
 
-# === Initialize Dash App ===
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -17,26 +17,23 @@ app = dash.Dash(
 )
 app.title = "Credit Risk Predictor"
 
-# === Define Paths ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
 model_paths = {
     "random_forest": os.path.join(project_root, "Artifacts", "PLK", "random_forest_model.pkl"),
-    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.pkl")  # Can update to .json if needed
+    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.pkl")
 }
 
 data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
 columns_path = os.path.join(project_root, "Artifacts", "PLK", "training_columns.pkl")
 
-# === Optional: Import XGBoost Safely ===
 try:
     import xgboost
 except ImportError:
     print("⚠️ Warning: xgboost is not installed. The XGBoost model will not be available.")
     xgboost = None
 
-# === Version Compatibility Check for scikit-learn ===
 from sklearn import __version__ as sklearn_version
 expected_sklearn_version = "1.5.1"
 
@@ -47,10 +44,7 @@ if sklearn_version != expected_sklearn_version:
         f"This mismatch may lead to loading or prediction issues."
     )
 
-
-# Add error handling for file loading
 try:
-    # Load models
     models = {}
     for key, path in model_paths.items():
         if key == 'xgboost' and xgboost is None:
@@ -61,7 +55,6 @@ try:
         with open(path, 'rb') as f:
             models[key] = pickle.load(f)
 
-    # Load training columns
     if not os.path.exists(columns_path):
         raise FileNotFoundError(f"Columns file not found: {columns_path}")
     with open(columns_path, 'rb') as f:
@@ -79,7 +72,6 @@ except FileNotFoundError as e:
     print(f"Data should be in: {os.path.dirname(data_file_path)}")
     raise
 
-# === Helper ===
 def flag_to_risk(flag):
     return {
         "P1": "Low Risk - Likely Approved",
@@ -88,7 +80,6 @@ def flag_to_risk(flag):
         "P4": "Critical Risk - Must Deny"
     }.get(flag, "Unknown")
 
-# === Prediction Callback (Tab 1) ===
 @app.callback(
     [Output("prediction-output", "children"),
      Output("prediction-explanation", "children")],
@@ -111,61 +102,104 @@ def flag_to_risk(flag):
 def predict_approval(n_clicks, model_type, age, gender, marital, education, 
                      income, employment_time, cc_flag, pl_flag, hl_flag, gl_flag,
                      credit_score, first_prod_enq, last_prod_enq):
+    if not n_clicks:
+        return "", ""
 
-    if not n_clicks or None in [age, gender, marital, education, income, employment_time, 
-                                cc_flag, pl_flag, hl_flag, gl_flag, credit_score]:
-        return html.Div("Please fill in all fields", className="text-danger"), ""
+    try:
+        numeric_fields = {
+            'Age': age,
+            'Income': income,
+            'Employment Time': employment_time,
+            'Credit Score': credit_score
+        }
+        
+        for field, value in numeric_fields.items():
+            try:
+                if value is not None:
+                    float(value)  # Test if convertible to float
+            except ValueError:
+                return html.Div(
+                    f"Invalid value for {field}. Please enter a valid number.", 
+                    className="text-danger"
+                ), ""
 
-    # Use default model if missing
-    if model_type not in models:
-        model_type = 'random_forest'
-    model = models[model_type]
+        if model_type not in models:
+            model_type = 'random_forest'
+        model = models[model_type]
 
-    # Pull a base row from dataset
-    base_row = full_data.sample(n=1, random_state=42).copy()
+        try:
+            base_row = full_data.sample(n=1, random_state=42).copy()
+        except Exception as e:
+            print(f"Error sampling data: {str(e)}")
+            return html.Div(
+                "Error preparing input data. Please try again.", 
+                className="text-danger"
+            ), ""
 
-    # Overwrite with inputs
-    input_mappings = {
-        'AGE': age,
-        'GENDER': gender,
-        'MARITALSTATUS': marital,
-        'EDUCATION': education,
-        'NETMONTHLYINCOME': income,
-        'Time_With_Curr_Empr': employment_time,
-        'CC_Flag': 1 if cc_flag == 'Yes' else 0,
-        'PL_Flag': 1 if pl_flag == 'Yes' else 0,
-        'HL_Flag': 1 if hl_flag == 'Yes' else 0,
-        'GL_Flag': 1 if gl_flag == 'Yes' else 0,
-        'Credit_Score': credit_score,
-        'first_prod_enq2': first_prod_enq or 'Unknown',  # Handle missing values
-        'last_prod_enq2': last_prod_enq or 'Unknown'    # Handle missing values
-    }
-    for col, val in input_mappings.items():
-        if col in base_row.columns:
-            base_row[col] = val
+        input_mappings = {
+            'AGE': float(age) if age is not None else None,
+            'GENDER': gender,
+            'MARITALSTATUS': marital,
+            'EDUCATION': education,
+            'NETMONTHLYINCOME': float(income) if income is not None else None,
+            'Time_With_Curr_Empr': float(employment_time) if employment_time is not None else None,
+            'CC_Flag': 1 if cc_flag == 'Yes' else 0,
+            'PL_Flag': 1 if pl_flag == 'Yes' else 0,
+            'HL_Flag': 1 if hl_flag == 'Yes' else 0,
+            'GL_Flag': 1 if gl_flag == 'Yes' else 0,
+            'Credit_Score': float(credit_score) if credit_score is not None else None,
+            'first_prod_enq2': first_prod_enq or 'Personal Loan',
+            'last_prod_enq2': last_prod_enq or 'Credit Card'
+        }
 
-    # Drop target column if it exists
-    base_row = base_row.drop(columns=['Approved_Flag'], errors='ignore')
+        missing_fields = [k for k, v in input_mappings.items() if v is None]
+        if missing_fields:
+            return html.Div(
+                f"Missing required fields: {', '.join(missing_fields)}", 
+                className="text-danger"
+            ), ""
 
-    # Encode and align with training data
-    if not isinstance(training_columns, list):  # Ensure training_columns is a list
-        raise ValueError("Training columns must be a list.")
-    input_encoded = pd.get_dummies(base_row)
-    input_encoded = input_encoded.reindex(columns=training_columns, fill_value=0)
+        for col, val in input_mappings.items():
+            if col in base_row.columns:
+                base_row[col] = val
 
-    # Predict and map output
-    prediction_raw = model.predict(input_encoded)[0]
-    label_map = {0: "P1", 1: "P2", 2: "P3", 3: "P4"}
-    prediction = label_map.get(prediction_raw, prediction_raw)
-    risk = flag_to_risk(prediction)
+        try:
+            base_row = base_row.drop(columns=['Approved_Flag'], errors='ignore')
+            input_encoded = pd.get_dummies(base_row)
+            input_encoded = input_encoded.reindex(columns=training_columns, fill_value=0)
+            
+            prediction_raw = model.predict(input_encoded)[0]
+            
+            if isinstance(prediction_raw, (int, np.integer)):
+                label_map = {0: "P1", 1: "P2", 2: "P3", 3: "P4"}
+                prediction = label_map.get(prediction_raw, str(prediction_raw))
+            else:
+                prediction = str(prediction_raw)
+                
+            risk = flag_to_risk(prediction)
+            
+            return html.H3(
+                f"Risk Assessment: {risk}", 
+                className="text-info"
+            ), html.P(
+                f"Based on your application, the {model_type.replace('_', ' ').title()} model classified you as: {risk}. "
+                f"This classification considers multiple financial and credit-based indicators."
+            )
 
-    # Return styled result
-    return html.H3(f"Risk Assessment: {risk}", className="text-info"), html.P(
-        f"Based on your application, the {model_type.replace('_', ' ').title()} model classified you as: {risk}. "
-        f"This classification considers multiple financial and credit-based indicators."
-    )
+        except Exception as e:
+            print(f"Prediction error: {str(e)}")
+            return html.Div(
+                "Error during prediction processing. Please verify your inputs and try again.", 
+                className="text-danger"
+            ), ""
 
-# === Model Comparison Callback (Tab 2) ===
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return html.Div(
+            "An unexpected error occurred. Please try again later.", 
+            className="text-danger"
+        ), ""
+
 @app.callback(
     [Output("comparison-output", "children"),
      Output("tips-output", "children")],
@@ -235,9 +269,7 @@ def compare_models(n_clicks, age, gender, marital, education,
     ])
     return comparison_table, tips
 
-# === Layout ===
 app.layout = dbc.Container([
-    # Decorative elements using native Dash components
     html.Div(className="particles"),
     html.Div(
         className="card-svg-decoration",
@@ -248,10 +280,9 @@ app.layout = dbc.Container([
             "opacity": "0.1",
             "pointerEvents": "none",
             "zIndex": "-1"
-        }  # Fixed unmatched closing brace
+        } 
     ),
 
-    # Update nav items with proper attributes
     dbc.Navbar([
         html.Img(src="/assets/images/logo.png", height="30px", className="me-2"),
         dbc.NavbarBrand("Credit Risk Predictor", className="ms-2"),
@@ -259,7 +290,7 @@ app.layout = dbc.Container([
             [
                 dbc.NavLink("Predict", id="nav-predict", href="#predict", 
                            active=True, className="nav-link-current"),
-                dbc.NavLink("Compare", id="nav-compare", href="#compare"),
+                dbc.NavLink("Advice", id="nav-compare", href="#compare"),  
                 dbc.NavLink("About", id="nav-about", href="#about"),
             ],
             className="ms-auto",
@@ -267,12 +298,11 @@ app.layout = dbc.Container([
         )
     ], color="primary", dark=True, sticky="top"),
 
-    # Global loading animation
     dcc.Loading(
         id="global-loading",
         type="circle",
         fullscreen=True,
-        children=html.Div(id="loading-placeholder")  # Added valid children
+        children=html.Div(id="loading-placeholder") 
     ),
     
     html.Header([
@@ -282,12 +312,9 @@ app.layout = dbc.Container([
         ], className="header text-center py-4", **{"aria-label": "Application Header"})
     ]),
 
-    # Main content with ARIA roles
     html.Main([
         html.Div(id="page-content", role="main", **{"aria-live": "polite"})
     ]),
-
-    # Semantic footer
     html.Footer(
         "© 2024 Credit Risk Predictor | All rights reserved",
         className="text-center py-3 mt-5 border-top"
@@ -301,27 +328,22 @@ app.layout = dbc.Container([
      Output("nav-about", "active")],
     [Input("nav-predict", "n_clicks"),
      Input("nav-compare", "n_clicks"),
-     Input("nav-about", "n_clicks")]
+     Input("nav-about", "n_clicks")],
+    prevent_initial_call=False 
 )
 def toggle_active_nav(predict_clicks, compare_clicks, about_clicks):
-    # Get the context of the triggered input
     ctx = dash.callback_context
-
-    # Default to the "Predict" tab if no input is triggered
+    
     if not ctx.triggered:
         return render_predict_page(), True, False, False
-
-    # Determine which tab was clicked
-    clicked_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    if clicked_id == "nav-predict":
-        return render_predict_page(), True, False, False
-    elif clicked_id == "nav-compare":
-        return render_compare_page(), False, True, False
-    elif clicked_id == "nav-about":
+    
+    triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if triggered_id == "nav-about":
         return render_about_page(), False, False, True
-
-    # Fallback to the "Predict" tab
-    return render_predict_page(), True, False, False
+    elif triggered_id == "nav-compare":
+        return render_compare_page(), False, True, False
+    else: 
+        return render_predict_page(), True, False, False
 
 @app.callback(
     [Output("nav-predict", "className"),
@@ -332,14 +354,10 @@ def toggle_active_nav(predict_clicks, compare_clicks, about_clicks):
      Input("nav-about", "n_clicks")]
 )
 def update_tab_classes(predict_clicks, compare_clicks, about_clicks):
-    # Get the context of the triggered input
     ctx = dash.callback_context
-
-    # Default to "Predict" tab if no input is triggered
     if not ctx.triggered:
         return "nav-link-current", "nav-link", "nav-link"
 
-    # Determine which tab was clicked
     clicked_id = ctx.triggered[0]["prop_id"].split(".")[0]
     if clicked_id == "nav-predict":
         return "nav-link-current", "nav-link", "nav-link"
@@ -348,19 +366,16 @@ def update_tab_classes(predict_clicks, compare_clicks, about_clicks):
     elif clicked_id == "nav-about":
         return "nav-link", "nav-link", "nav-link-current"
 
-    # Fallback to "Predict" tab
     return "nav-link-current", "nav-link", "nav-link"
 
 def render_predict_page():
     return html.Section([
         dbc.Row([
-            # Input Section (left)
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
                         html.H4("Applicant Information", className="card-title mb-4"),
-
-                        # Step 1 - Personal
+                        
                         html.Div([
                             html.H5([
                                 html.I(className="fas fa-user me-2"),
@@ -397,7 +412,6 @@ def render_predict_page():
                             ])
                         ], className="form-step"),
 
-                        # Step 2 - Employment
                         html.Div([
                             html.H5([
                                 html.I(className="fas fa-briefcase me-2"),
@@ -416,7 +430,6 @@ def render_predict_page():
                             ])
                         ], className="form-step"),
 
-                        # Step 3 - Product Flags
                         html.Div([
                             html.H5([
                                 html.I(className="fas fa-credit-card me-2"),
@@ -455,7 +468,6 @@ def render_predict_page():
                             ])
                         ], className="form-step"),
 
-                        # Step 4 - Credit History
                         html.Div([
                             html.H5([
                                 html.I(className="fas fa-history me-2"),
@@ -482,15 +494,31 @@ def render_predict_page():
                             ])
                         ], className="form-step"),
 
-                        # Submit Button
                         html.Div([
-                            dbc.Button("Predict Approval", id="predict-button", color="primary", className="predict-button")
-                        ], className="predict-button-container")
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Dropdown(
+                                        id="model-selection",
+                                        options=[
+                                            {"label": "Random Forest", "value": "random_forest"},
+                                            {"label": "XGBoost", "value": "xgboost"}
+                                        ],
+                                        value="random_forest",
+                                        placeholder="Select model",
+                                        className="model-selector",
+                                        style={"margin-bottom": "1rem"}
+                                    ),
+                                ], width={"size": 6, "offset": 3})
+                            ], className="justify-content-center mb-3"),
+                            
+                            html.Div([
+                                dbc.Button("Predict Approval", id="predict-button", color="primary", className="predict-button")
+                            ], className="text-center")
+                        ], className="model-selection-container")
                     ])
                 ])
             ], width=12, lg=6),
 
-            # Output Section (right)
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -514,9 +542,8 @@ def render_compare_page():
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
-                    html.H4("Credit Optimization Toolkit", className="card-title mb-4"),
+                    html.H4("Credit Best Practices & Tips", className="card-title mb-4"),
                     
-                    # Interactive Tips Buttons
                     dbc.ButtonGroup([
                         dbc.Button("Payment History", id="tip-1-btn", className="tip-btn", n_clicks=0),
                         dbc.Button("Credit Utilization", id="tip-2-btn", className="tip-btn", n_clicks=0),
@@ -525,22 +552,87 @@ def render_compare_page():
                         dbc.Button("Monitoring", id="tip-5-btn", className="tip-btn", n_clicks=0),
                     ], className="mb-4 d-flex flex-wrap gap-2"),
                     
-                    # Tips Content
                     html.Div(id="dynamic-tips-content", className="tips-content"),
                     
-                    # Visual Progress Section
-                    html.Div([
-                        html.H5("Credit Health Meter", className="mt-4"),
-                        dcc.Graph(id="credit-health-meter", config={'displayModeBar': False},  # Fixed initialization
-                                  figure={  # Added default figure
-                                      "data": [],
-                                      "layout": {"title": "Credit Health Meter"}
-                                  })
-                    ], className="progress-section")
                 ])
             ], className="comparison-card")
         ], width=12, lg=10)
     ], className="g-4 justify-content-center")
+
+def render_about_page():
+    return dbc.Container([
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4("About This Project", className="card-title mb-4"),
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Team Members", className="text-primary mb-3"),
+                                html.Ul([
+                                    html.Li([html.I(className="fas fa-user me-2 text-success"), "Marius Francois Grassman"]),
+                                    html.Li([html.I(className="fas fa-user me-2 text-success"), "Dieter Olivier"]),
+                                    html.Li([html.I(className="fas fa-user me-2 text-success"), "Tiaan Dortfling"]),
+                                    html.Li([html.I(className="fas fa-user me-2 text-success"), "Ryan Andrews"]),
+                                    html.Li([html.I(className="fas fa-user me-2 text-success"), "Reghard du Plessis"]),
+                                ], className="tips-list mb-4")
+                            ])
+                        ], className="tips-card fade-in mb-4"),
+
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Project Overview", className="text-primary mb-3"),
+                                html.P([html.I(className="fas fa-project-diagram me-2 text-success"), 
+                                      "Credit Risk Assessment: Build a model to assess the creditworthiness of individuals or businesses and predict the risk of default on loans or credit lines."], 
+                                      className="tips-list")
+                            ])
+                        ], className="tips-card fade-in mb-4"),
+
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("How It Works", className="text-primary mb-3"),
+                                html.P([html.I(className="fas fa-cogs me-2 text-success"), 
+                                      "We developed a machine learning solution that predicts the likelihood of loan approval using user-provided financial and personal data. The app uses two powerful algorithms — Random Forest and XGBoost — to analyze risk based on patterns found in training data."],
+                                      className="tips-list")
+                            ])
+                        ], className="tips-card fade-in mb-4"),
+
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Our Models", className="text-primary mb-3"),
+                                html.Ul([
+                                    html.Li([html.I(className="fas fa-tree me-2 text-success"), 
+                                           html.B("Random Forest: "), 
+                                           "An ensemble of decision trees that reduces overfitting by averaging the results of many smaller trees. It's known for stability and handling mixed feature types."]),
+                                    html.Li([html.I(className="fas fa-bolt me-2 text-success"), 
+                                           html.B("XGBoost: "), 
+                                           "A high-performance gradient boosting technique that builds trees sequentially, optimizing each one to correct errors made by previous trees. It's fast, accurate, and often used in real-world financial applications."]),
+                                ], className="tips-list mb-4")
+                            ])
+                        ], className="tips-card fade-in mb-4"),
+
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Why It Matters", className="text-primary mb-3"),
+                                html.P([html.I(className="fas fa-chart-line me-2 text-success"), 
+                                      "Credit risk assessment is critical for financial institutions. By automating this process with machine learning, we can provide faster, more consistent decisions — reducing human error and helping lenders manage risk more effectively."],
+                                      className="tips-list")
+                            ])
+                        ], className="tips-card fade-in")
+                    ])
+                ], className="about-card")
+            ], width=12, lg=8, className="mx-auto")
+        ])
+    ], fluid=False, className="py-4")
+
+@app.callback(
+    Output('model-selection', 'style'),
+    Input('show-model-selection', 'value')
+)
+def toggle_model_selector(show):
+    if show == 1:
+        return {'display': 'block'}
+    return {'display': 'none'}
 
 @app.callback(
     Output("dynamic-tips-content", "children"),
@@ -558,90 +650,105 @@ def update_tips_content(*args):
             dbc.CardBody([
                 html.H5("Payment History Best Practices", className="text-primary mb-3"),
                 html.Ul([
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Always pay your accounts on time to avoid negative listings on your credit report."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Set up debit orders for consistent payments on loans and credit cards."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "If you miss a payment, contact your creditor immediately to negotiate a repayment plan."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Avoid legal action by keeping your accounts up to date."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Regularly check your credit report for any missed payments or errors."])
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Set up debit orders for all your accounts - South African banks like FNB, Standard Bank, and ABSA prefer automatic payments."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Always pay more than the minimum required amount on your credit card - aim for at least 15% above minimum."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Keep proof of payments for at least 5 years as per South African credit regulations."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Register for payment notifications with your bank to avoid missing due dates."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "If you miss a payment, contact your creditor within 24 hours to make arrangements - South African credit providers are often willing to negotiate."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Maintain a good standing with your cell phone contract payments as these are reported to credit bureaus in South Africa."])
                 ], className="tips-list")
             ])
         ], className="tips-card fade-in"),
+        
         "tip-2-btn": dbc.Card([
             dbc.CardBody([
-                html.H5("Optimizing Credit Utilization", className="text-primary mb-3"),
+                html.H5("Credit Utilization in South Africa", className="text-primary mb-3"),
                 html.Ul([
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Keep your credit card balances below 30% of your credit limit."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Pay off your credit card balance in full each month to avoid interest charges."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Avoid maxing out your credit cards, as it negatively impacts your credit score."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Request a credit limit increase only if you can manage it responsibly."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Distribute your spending across multiple credit accounts to reduce utilization on any single account."])
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Keep your credit utilization below 30% - South African credit bureaus heavily weight this factor."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Avoid using credit cards for cash withdrawals as South African banks charge high fees and interest."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Don't max out store cards from retailers like Woolworths, Truworths, or Mr Price."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Maintain a healthy balance between credit card and store account usage."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Consider consolidating multiple store cards into a single lower-interest credit card."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Review your credit limit increases carefully - banks often offer automatic increases."])
                 ], className="tips-list")
             ])
         ], className="tips-card fade-in"),
+
         "tip-3-btn": dbc.Card([
             dbc.CardBody([
-                html.H5("Improving Credit Mix", className="text-primary mb-3"),
+                html.H5("Credit Mix for South African Consumers", className="text-primary mb-3"),
                 html.Ul([
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Maintain a mix of credit types, such as credit cards, personal loans, and home loans."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Avoid relying solely on short-term loans like payday loans, as they can harm your credit profile."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "If you don’t have a credit history, consider opening a secured credit card to build one."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Keep older accounts open to show a longer credit history."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Avoid opening too many new accounts in a short period, as it may signal financial instability."])
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Balance different types of credit: home loan (bond), vehicle finance, credit card, and store accounts."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Avoid multiple personal loans from different providers like African Bank, Capitec, or Direct Axis."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Consider a secured credit card from major banks as a safer credit-building option."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Don't rely heavily on unsecured loans which carry higher interest rates in South Africa."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Keep your oldest credit account active to maintain credit history length."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Avoid payday loans and mashonisas (loan sharks) at all costs."])
                 ], className="tips-list")
             ])
         ], className="tips-card fade-in"),
+
         "tip-4-btn": dbc.Card([
             dbc.CardBody([
-                html.H5("Managing New Credit", className="text-primary mb-3"),
+                html.H5("Managing New Credit in South Africa", className="text-primary mb-3"),
                 html.Ul([
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Only apply for new credit when absolutely necessary to avoid unnecessary inquiries on your credit report."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Shop around for the best interest rates within a short period to minimize the impact on your credit score."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Avoid opening store accounts for discounts unless you plan to use them responsibly."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Understand the terms and conditions of any new credit agreement before signing."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Ensure you can afford the monthly repayments before taking on new credit."])
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Space out credit applications by at least 6 months - multiple applications impact your credit score significantly in SA."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Complete affordability assessments honestly as required by the National Credit Act."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Ensure you have all required documents (proof of income, bank statements, ID) before applying."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Research interest rates across different banks - they can vary significantly in South Africa."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Be cautious of credit providers who don't do proper affordability checks."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Check if you qualify for special rates (like professional banking) before applying."])
                 ], className="tips-list")
             ])
         ], className="tips-card fade-in"),
+
         "tip-5-btn": dbc.Card([
             dbc.CardBody([
-                html.H5("Credit Monitoring Strategies", className="text-primary mb-3"),
+                html.H5("Credit Monitoring in South Africa", className="text-primary mb-3"),
                 html.Ul([
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Check your credit report regularly through South African credit bureaus like TransUnion or Experian."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Dispute any inaccuracies on your credit report immediately to avoid negative impacts."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Set up fraud alerts if you suspect identity theft or unauthorized credit activity."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Use credit monitoring services to receive real-time updates on changes to your credit profile."]),
-                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), "Keep your personal information secure to prevent identity theft."])
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Get your free annual credit report from TransUnion, Experian, or Compuscan."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Register with the Credit Ombud if you spot any irregularities in your credit report."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Check for any fraudulent RICA or FICA registrations under your name."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Monitor your credit score monthly through your bank's app or credit bureau services."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Keep records of all credit applications and responses as required by the National Credit Act."]),
+                    html.Li([html.I(className="fas fa-check-circle me-2 text-success"), 
+                           "Set up fraud alerts with the South African Fraud Prevention Service (SAFPS)."])
                 ], className="tips-list")
             ])
         ], className="tips-card fade-in")
     }
 
     return tip_content.get(button_id, "")
-
-def render_about_page():
-    return dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardBody([
-                    html.H4("About", className="card-title mb-4"),
-                    html.P("This section will contain information about the Credit Risk Predictor app, its purpose, and the team behind it. (To be updated)")
-                ])
-            ], className="about-card")
-        ], width=12, lg=8)
-    ], className="g-4 justify-content-center")
-
-# === Callback to Show/Hide Model Selection ===
-@app.callback(
-    Output('model-selection', 'style'),
-    Input('show-model-selection', 'value')
-)
-def toggle_model_selector(show):
-    if show == 1:
-        return {'display': 'block'}
-    return {'display': 'none'}
-
-# === Run the app ===
-server = app.server  # <-- Add this line for Render compatibility # Define a default port number
+server = app.server 
 if __name__ == '__main__':
-   app.run(debug=False, port=8050)  # Set debug=False for production
+   app.run(debug=False, port=8050)  
 

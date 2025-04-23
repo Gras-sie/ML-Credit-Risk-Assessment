@@ -533,3 +533,156 @@
         flex-direction: column;
     }
 }
+
+/* Model Selection Styles */
+.model-selection-container {
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.model-selection-container:hover {
+    box-shadow: var(--shadow-sm);
+}
+
+.model-selection-container .form-check {
+    margin-bottom: 0.5rem;
+}
+
+.model-selection-container .form-check-label {
+    color: var(--text-dark);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.model-selection-container .form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+#model-selection {
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    background: #f8fafc;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+}
+
+#model-selection .Select-control:hover {
+    border-color: var(--primary-color);
+}
+
+#model-selection .is-focused:not(.is-open) > .Select-control {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+}
+
+/* Model Selection Styles - Updated */
+.model-selection-container {
+    padding: 1rem 0;
+    border-top: 1px solid var(--border-color);
+    margin-top: 2rem;
+}
+
+.model-selection-container .form-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+
+.model-selection-container .form-check-label {
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: 0.5rem;
+}
+
+.model-selector {
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+/* Override Dash Dropdown defaults */
+.Select-control {
+    border: 1px solid var(--border-color) !important;
+    border-radius: 4px !important;
+    height: 36px !important;
+}
+
+.Select-placeholder,
+.Select-value {
+    line-height: 36px !important;
+    padding-left: 10px !important;
+}
+
+.Select-input {
+    height: 36px !important;
+    padding-left: 10px !important;
+}
+
+.Select-menu-outer {
+    border: 1px solid var(--border-color) !important;
+    box-shadow: var(--shadow-sm) !important;
+    margin-top: 2px !important;
+}
+
+.Select-option {
+    padding: 8px 10px !important;
+}
+
+.Select-option.is-selected {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+.Select-option.is-focused {
+    background-color: rgba(30, 136, 229, 0.1) !important;
+}
+
+/* Enhanced Model Selector Styling */
+.model-selector .VirtualizedSelectFocusedOption {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+.model-selector .VirtualizedSelectOption {
+    padding: 10px !important;
+    font-size: 0.9rem !important;
+}
+
+.model-selector .Select-control {
+    border: 2px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    background: rgba(255,255,255,0.9) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: all 0.3s ease !important;
+}
+
+.model-selector .Select-control:hover {
+    border-color: var(--primary-color) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.model-selector .Select-arrow-zone {
+    padding-right: 12px !important;
+}
+
+.model-selector .Select-value-label {
+    font-weight: 500 !important;
+    color: var(--text-dark) !important;
+}
+
+.model-selection-container .mb-2 {
+    display: none !important;
+}
+
+.model-selection-container {
+    padding: 1rem 0 0 0 !important;
+    border: none !important;
+    margin-top: 1rem !important;
+}
