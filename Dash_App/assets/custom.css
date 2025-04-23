@@ -2,14 +2,15 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
-    background-color: #f8f9fa;
+    background: #f8fafc;
     min-height: 100vh;
+    padding-bottom: 40px;
 }
 
 .header {
     background: linear-gradient(135deg, #1e88e5, #1565c0);
     color: white;
-    padding: 2rem;
+    padding: 10px 0 10px 20px;
     border-radius: 10px;
     margin-bottom: 2rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -22,12 +23,13 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.prediction-card {
+.prediction-card, .comparison-card, .about-card {
     background: white;
     border-radius: 10px;
     padding: 2rem;
-    margin-top: 2rem;
+    margin-top: 20px;
     text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
 }
 
 .feature-card {
@@ -77,6 +79,26 @@
 
 .loading-spinner {
     margin-top: 1rem;
+}
+
+.tab-corner-tabs {
+    float: right;
+}
+
+.tab-corner .nav-link {
+    border-radius: 20px 20px 0 0;
+    margin-left: 5px;
+    background: #e9ecef;
+    color: #333;
+}
+
+.tab-corner .nav-link.active {
+    background: #0d6efd;
+    color: #fff;
+}
+
+.tips-list ul {
+    margin-left: 20px;
 }
 
 /* Grade specific colors */

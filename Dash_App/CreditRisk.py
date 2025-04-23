@@ -8,7 +8,6 @@ import os
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Credit Risk Predictor"
 
-
 # === Paths ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
 model_paths = {
@@ -38,6 +37,7 @@ def flag_to_risk(flag):
         "P4": "Critical Risk - Must Deny"
     }.get(flag, "Unknown")
 
+# === Prediction Callback (Tab 1) ===
 @app.callback(
     [Output("prediction-output", "children"),
      Output("prediction-explanation", "children")],
@@ -112,171 +112,292 @@ def predict_approval(n_clicks, model_type, age, gender, marital, education,
         f"This classification considers multiple financial and credit-based indicators."
     )
 
+# === Model Comparison Callback (Tab 2) ===
+@app.callback(
+    [Output("comparison-output", "children"),
+     Output("tips-output", "children")],
+    [Input("compare-button", "n_clicks")],
+    [State("input-age", "value"),
+     State("input-gender", "value"),
+     State("input-marital", "value"),
+     State("input-education", "value"),
+     State("input-income", "value"),
+     State("input-employment-time", "value"),
+     State("input-cc-flag", "value"),
+     State("input-pl-flag", "value"),
+     State("input-hl-flag", "value"),
+     State("input-gl-flag", "value"),
+     State("input-credit-score", "value"),
+     State("input-first-prod-enq", "value"),
+     State("input-last-prod-enq", "value")]
+)
+def compare_models(n_clicks, age, gender, marital, education, 
+                  income, employment_time, cc_flag, pl_flag, hl_flag, gl_flag,
+                  credit_score, first_prod_enq, last_prod_enq):
+    if not n_clicks or None in [age, gender, marital, education, income, employment_time, 
+                                cc_flag, pl_flag, hl_flag, gl_flag, credit_score]:
+        return html.Div("Please fill in all fields", className="text-danger"), ""
+    results = []
+    for model_type in ['random_forest', 'xgboost']:
+        model = models[model_type]
+        base_row = full_data.sample(n=1, random_state=42).copy()
+        input_mappings = {
+            'AGE': age,
+            'GENDER': gender,
+            'MARITALSTATUS': marital,
+            'EDUCATION': education,
+            'NETMONTHLYINCOME': income,
+            'Time_With_Curr_Empr': employment_time,
+            'CC_Flag': 1 if cc_flag == 'Yes' else 0,
+            'PL_Flag': 1 if pl_flag == 'Yes' else 0,
+            'HL_Flag': 1 if hl_flag == 'Yes' else 0,
+            'GL_Flag': 1 if gl_flag == 'Yes' else 0,
+            'Credit_Score': credit_score,
+            'first_prod_enq2': first_prod_enq or 'Personal Loan',
+            'last_prod_enq2': last_prod_enq or 'Credit Card'
+        }
+        for col, val in input_mappings.items():
+            if col in base_row.columns:
+                base_row[col] = val
+        base_row = base_row.drop(columns=['Approved_Flag'], errors='ignore')
+        input_encoded = pd.get_dummies(base_row)
+        input_encoded = input_encoded.reindex(columns=training_columns, fill_value=0)
+        prediction_raw = model.predict(input_encoded)[0]
+        label_map = {0: "P1", 1: "P2", 2: "P3", 3: "P4"}
+        prediction = label_map.get(prediction_raw, prediction_raw)
+        risk = flag_to_risk(prediction)
+        results.append((model_type.replace('_', ' ').title(), risk))
+    comparison_table = dbc.Table([
+        html.Thead(html.Tr([html.Th("Model"), html.Th("Risk Assessment")])),
+        html.Tbody([
+            html.Tr([html.Td(model), html.Td(risk)]) for model, risk in results
+        ])
+    ], bordered=True, hover=True, responsive=True, className="mt-3")
+    tips = html.Ul([
+        html.Li("Maintain a good credit score by paying bills on time."),
+        html.Li("Keep your credit utilization low."),
+        html.Li("Avoid applying for too many loans/credit cards at once."),
+        html.Li("Increase your income and job stability where possible."),
+        html.Li("Regularly review your credit report for errors.")
+    ])
+    return comparison_table, tips
+
+# === Layout ===
 app.layout = dbc.Container([
-
-    # Page Header
-    dbc.Row(dbc.Col(
-        html.Div([
-            html.H1("Credit Risk Predictor", className="display-4 mb-3"),
-            html.H4("Estimate credit approval potential based on client details", className="text-light")
-        ], className="header text-center")
-    )),
-
     dbc.Row([
-        # Input Section (left)
         dbc.Col([
-            dbc.Card([
-                dbc.CardBody([
-                    html.H4("Applicant Information", className="card-title mb-4"),
+            html.Div([
+                html.H1("Credit Risk Predictor", className="display-4 mb-2"),
+                html.H6("Estimate credit approval potential based on client details", className="text-light"),
+            ], className="header"),
+        ], width=8),
+        dbc.Col([
+            # Tab corner in top right
+            dbc.Tabs(
+                id="main-tabs",
+                active_tab="tab-input",
+                children=[
+                    dbc.Tab(label="Predict", tab_id="tab-input", tab_class_name="tab-corner"),
+                    dbc.Tab(label="Compare & Tips", tab_id="tab-compare", tab_class_name="tab-corner"),
+                    dbc.Tab(label="About", tab_id="tab-about", tab_class_name="tab-corner"),
+                ],
+                class_name="justify-content-end tab-corner-tabs"
+            )
+        ], width=4, className="d-flex align-items-center justify-content-end")
+    ], className="align-items-center mt-2 mb-4"),
 
-                    # Step 1 - Personal
-                    html.H5("Step 1: Personal Details", className="mt-3"),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Age"),
-                            dcc.Input(id="input-age", type="number", min=18, max=100, placeholder="Enter age", className="form-control")
-                        ], width=4),
-                        dbc.Col([
-                            html.Label("Gender"),
-                            dcc.Dropdown(id="input-gender", options=[
-                                {"label": "Male", "value": "Male"},
-                                {"label": "Female", "value": "Female"},
-                                {"label": "Other", "value": "Other"}
-                            ], placeholder="Select gender", className="form-control")
-                        ], width=4),
-                        dbc.Col([
-                            html.Label("Marital Status"),
-                            dcc.Dropdown(id="input-marital", options=[
-                                {"label": m, "value": m} for m in ["Single", "Married", "Divorced", "Widowed"]
-                            ], placeholder="Marital Status", className="form-control")
-                        ], width=4),
-                    ]),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Education"),
-                            dcc.Dropdown(id="input-education", options=[
-                                {"label": edu, "value": edu} for edu in ["High School", "Diploma", "Bachelor's", "Master's", "PhD", "Other"]
-                            ], placeholder="Education Level", className="form-control")
-                        ], width=12)
-                    ], className="mb-3"),
+    html.Div(id="tab-content")
+], fluid=True, className="app-container")
 
-                    # Step 2 - Employment
-                    html.H5("Step 2: Employment & Income", className="mt-3"),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Net Monthly Income (ZAR)"),
-                            dcc.Input(id="input-income", type="number", placeholder="e.g. 10000", className="form-control")
-                        ], width=6),
-                        dbc.Col([
-                            html.Label("Time With Current Employer (Months)"),
-                            dcc.Input(id="input-employment-time", type="number", placeholder="e.g. 24", className="form-control")
-                        ], width=6)
-                    ], className="mb-3"),
+# === Tab Content Callback ===
+@app.callback(
+    Output("tab-content", "children"),
+    Input("main-tabs", "active_tab")
+)
+def render_tab_content(active_tab):
+    if active_tab == "tab-input":
+        return dbc.Row([
+            # Input Section (left)
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4("Applicant Information", className="card-title mb-4"),
 
-                    # Step 3 - Product Flags
-                    html.H5("Step 3: Loan Ownership", className="mt-3"),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Has Credit Card?"),
-                            dcc.Dropdown(id="input-cc-flag", options=[
-                                {"label": "Yes", "value": "Yes"},
-                                {"label": "No", "value": "No"}
-                            ], placeholder="Select option", className="form-control")
-                        ], width=3),
-                        dbc.Col([
-                            html.Label("Has Personal Loan?"),
-                            dcc.Dropdown(id="input-pl-flag", options=[
-                                {"label": "Yes", "value": "Yes"},
-                                {"label": "No", "value": "No"}
-                            ], placeholder="Select option", className="form-control")
-                        ], width=3),
-                        dbc.Col([
-                            html.Label("Has Home Loan?"),
-                            dcc.Dropdown(id="input-hl-flag", options=[
-                                {"label": "Yes", "value": "Yes"},
-                                {"label": "No", "value": "No"}
-                            ], placeholder="Select option", className="form-control")
-                        ], width=3),
-                        dbc.Col([
-                            html.Label("Has Gold Loan?"),
-                            dcc.Dropdown(id="input-gl-flag", options=[
-                                {"label": "Yes", "value": "Yes"},
-                                {"label": "No", "value": "No"}
-                            ], placeholder="Select option", className="form-control")
-                        ], width=3),
-                    ], className="mb-3"),
+                        # Step 1 - Personal
+                        html.H5("Step 1: Personal Details", className="mt-3"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Age"),
+                                dcc.Input(id="input-age", type="number", min=18, max=100, placeholder="Enter age", className="form-control")
+                            ], width=4),
+                            dbc.Col([
+                                html.Label("Gender"),
+                                dcc.Dropdown(id="input-gender", options=[
+                                    {"label": "Male", "value": "Male"},
+                                    {"label": "Female", "value": "Female"},
+                                    {"label": "Other", "value": "Other"}
+                                ], placeholder="Select gender", className="form-control")
+                            ], width=4),
+                            dbc.Col([
+                                html.Label("Marital Status"),
+                                dcc.Dropdown(id="input-marital", options=[
+                                    {"label": m, "value": m} for m in ["Single", "Married", "Divorced", "Widowed"]
+                                ], placeholder="Marital Status", className="form-control")
+                            ], width=4),
+                        ]),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Education"),
+                                dcc.Dropdown(id="input-education", options=[
+                                    {"label": edu, "value": edu} for edu in ["High School", "Diploma", "Bachelor's", "Master's", "PhD", "Other"]
+                                ], placeholder="Education Level", className="form-control")
+                            ], width=12)
+                        ], className="mb-3"),
 
-                    # Step 4 - Credit History
-                    html.H5("Step 4: Credit Info", className="mt-3"),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Credit Score"),
-                            dcc.Input(id="input-credit-score", type="number", min=300, max=850, placeholder="e.g. 720", className="form-control")
-                        ], width=4),
-                        dbc.Col([
-                            html.Label("First Product Enquired"),
-                            dcc.Dropdown(id="input-first-prod-enq", options=[
-                                {"label": p, "value": p} for p in ["Credit Card", "Personal Loan", "Home Loan", "Gold Loan", "others"]
-                            ], placeholder="Select product", className="form-control")
-                        ], width=4),
-                        dbc.Col([
-                            html.Label("Last Product Enquired"),
-                            dcc.Dropdown(id="input-last-prod-enq", options=[
-                                {"label": p, "value": p} for p in ["Credit Card", "Personal Loan", "Home Loan", "Gold Loan", "others"]
-                            ], placeholder="Select product", className="form-control")
-                        ], width=4),
-                    ], className="mb-3"),
+                        # Step 2 - Employment
+                        html.H5("Step 2: Employment & Income", className="mt-3"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Net Monthly Income (ZAR)"),
+                                dcc.Input(id="input-income", type="number", placeholder="e.g. 10000", className="form-control")
+                            ], width=6),
+                            dbc.Col([
+                                html.Label("Time With Current Employer (Months)"),
+                                dcc.Input(id="input-employment-time", type="number", placeholder="e.g. 24", className="form-control")
+                            ], width=6)
+                        ], className="mb-3"),
 
-                    # Model Toggle & Submit
-                    dbc.Row([
-                        dbc.Col([
-                            html.Label("Show Model Selection"),
-                            dcc.Dropdown(
-                                id='show-model-selection',
-                                options=[{'label': 'Yes', 'value': 1}, {'label': 'No', 'value': 0}],
-                                value=0,
-                                className="form-control"
-                            )
-                        ], width=12),
-                        dbc.Col([
-                            html.Label("Model Selection"),
-                            dcc.Dropdown(
-                                id='model-selection',
-                                options=[
-                                    {'label': 'Random Forest', 'value': 'random_forest'},
-                                    {'label': 'XGBoost Classifier', 'value': 'xgboost'}
-                                ],
-                                value='random_forest',
-                                className="form-control",
-                                style={'display': 'none'}
-                            )
-                        ], width=12),
-                        dbc.Col([
-                            dbc.Button("Predict Approval", id="predict-button", color="primary", className="mt-4 w-100")
+                        # Step 3 - Product Flags
+                        html.H5("Step 3: Loan Ownership", className="mt-3"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Has Credit Card?"),
+                                dcc.Dropdown(id="input-cc-flag", options=[
+                                    {"label": "Yes", "value": "Yes"},
+                                    {"label": "No", "value": "No"}
+                                ], placeholder="Select option", className="form-control")
+                            ], width=3),
+                            dbc.Col([
+                                html.Label("Has Personal Loan?"),
+                                dcc.Dropdown(id="input-pl-flag", options=[
+                                    {"label": "Yes", "value": "Yes"},
+                                    {"label": "No", "value": "No"}
+                                ], placeholder="Select option", className="form-control")
+                            ], width=3),
+                            dbc.Col([
+                                html.Label("Has Home Loan?"),
+                                dcc.Dropdown(id="input-hl-flag", options=[
+                                    {"label": "Yes", "value": "Yes"},
+                                    {"label": "No", "value": "No"}
+                                ], placeholder="Select option", className="form-control")
+                            ], width=3),
+                            dbc.Col([
+                                html.Label("Has Gold Loan?"),
+                                dcc.Dropdown(id="input-gl-flag", options=[
+                                    {"label": "Yes", "value": "Yes"},
+                                    {"label": "No", "value": "No"}
+                                ], placeholder="Select option", className="form-control")
+                            ], width=3),
+                        ], className="mb-3"),
+
+                        # Step 4 - Credit History
+                        html.H5("Step 4: Credit Info", className="mt-3"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Credit Score"),
+                                dcc.Input(id="input-credit-score", type="number", min=300, max=850, placeholder="e.g. 720", className="form-control")
+                            ], width=4),
+                            dbc.Col([
+                                html.Label("First Product Enquired"),
+                                dcc.Dropdown(id="input-first-prod-enq", options=[
+                                    {"label": p, "value": p} for p in ["Credit Card", "Personal Loan", "Home Loan", "Gold Loan", "others"]
+                                ], placeholder="Select product", className="form-control")
+                            ], width=4),
+                            dbc.Col([
+                                html.Label("Last Product Enquired"),
+                                dcc.Dropdown(id="input-last-prod-enq", options=[
+                                    {"label": p, "value": p} for p in ["Credit Card", "Personal Loan", "Home Loan", "Gold Loan", "others"]
+                                ], placeholder="Select product", className="form-control")
+                            ], width=4),
+                        ], className="mb-3"),
+
+                        # Model Toggle & Submit
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Show Model Selection"),
+                                dcc.Dropdown(
+                                    id='show-model-selection',
+                                    options=[{'label': 'Yes', 'value': 1}, {'label': 'No', 'value': 0}],
+                                    value=0,
+                                    className="form-control"
+                                )
+                            ], width=12),
+                            dbc.Col([
+                                html.Label("Model Selection"),
+                                dcc.Dropdown(
+                                    id='model-selection',
+                                    options=[
+                                        {'label': 'Random Forest', 'value': 'random_forest'},
+                                        {'label': 'XGBoost Classifier', 'value': 'xgboost'}
+                                    ],
+                                    value='random_forest',
+                                    className="form-control",
+                                    style={'display': 'none'}
+                                )
+                            ], width=12),
+                            dbc.Col([
+                                dbc.Button("Predict Approval", id="predict-button", color="primary", className="mt-4 w-100")
+                            ])
                         ])
                     ])
                 ])
-            ])
-        ], width=12, lg=6),
+            ], width=12, lg=6),
 
-        # Output Section (right)
-        dbc.Col([
-            dbc.Card([
-                dbc.CardBody([
-                    html.H4("Prediction Result", className="card-title mb-4"),
-                    dcc.Loading(
-                        id="loading-prediction",
-                        type="circle",
-                        children=html.Div([
-                            html.Div(id="prediction-output"),
-                            html.Div(id="prediction-explanation", className="mt-4")
-                        ])
-                    )
-                ])
-            ], className="prediction-card")
-        ], width=12, lg=6)
-    ])
-], fluid=True, className="app-container")
+            # Output Section (right)
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4("Prediction Result", className="card-title mb-4"),
+                        dcc.Loading(
+                            id="loading-prediction",
+                            type="circle",
+                            children=html.Div([
+                                html.Div(id="prediction-output"),
+                                html.Div(id="prediction-explanation", className="mt-4")
+                            ])
+                        )
+                    ])
+                ], className="prediction-card")
+            ], width=12, lg=6)
+        ])
+    elif active_tab == "tab-compare":
+        return dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4("Model Comparison", className="card-title mb-4"),
+                        dbc.Button("Compare Models", id="compare-button", color="info", className="mb-3"),
+                        html.Div(id="comparison-output"),
+                        html.Hr(),
+                        html.H5("Tips & Best Practices", className="mt-4"),
+                        html.Div(id="tips-output", className="tips-list")
+                    ])
+                ], className="comparison-card")
+            ], width=12, lg=8)
+        ], className="justify-content-center")
+    elif active_tab == "tab-about":
+        return dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H4("About", className="card-title mb-4"),
+                        html.P("This section will contain information about the Credit Risk Predictor app, its purpose, and the team behind it. (To be updated)")
+                    ])
+                ], className="about-card")
+            ], width=12, lg=8)
+        ], className="justify-content-center")
+    else:
+        return html.Div()
 
 # === Callback to Show/Hide Model Selection ===
 @app.callback(
