@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import os
 import warnings
+import json
 
 # === Initialize Dash App ===
 app = dash.Dash(
@@ -26,6 +27,7 @@ model_paths = {
     "random_forest": os.path.join(project_root, "Artifacts", "PLK", "random_forest_model.pkl"),
     "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.json")  # Use .json format!
 }
+label_map_path = os.path.join(project_root, "Artifacts", "PLK", "label_mapping.json")
 columns_path = os.path.join(project_root, "Artifacts", "PLK", "training_columns.pkl")
 data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
 
@@ -47,7 +49,11 @@ if sklearn_version != expected_version:
 #Load Models and Data
 try:
     models = {}
-
+    
+    # Load label mapping for XGBoost
+    with open(label_map_path) as f:
+        label_mapping = json.load(f)
+        
     for key, path in model_paths.items():
         if key == "xgboost":
             if xgboost is None:
@@ -55,9 +61,20 @@ try:
                 continue
             if not os.path.exists(path):
                 raise FileNotFoundError(f"XGBoost model file not found: {path}")
-            booster = xgboost.Booster()
-            booster.load_model(path)
-            models[key] = booster
+            try:
+                # Initialize XGBoost classifier with same parameters
+                model = xgboost.XGBClassifier(
+                    n_estimators=500,
+                    eval_metric='mlogloss',
+                    objective='multi:softmax',
+                    num_class=len(label_mapping),
+                    enable_categorical=False
+                )
+                model.load_model(path)
+                models[key] = model
+            except Exception as e:
+                print(f"Error loading XGBoost model: {e}")
+                continue
         else:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Model file not found: {path}")
@@ -178,7 +195,14 @@ def predict_approval(n_clicks, model_type, age, gender, marital, education,
             input_encoded = pd.get_dummies(base_row)
             input_encoded = input_encoded.reindex(columns=training_columns, fill_value=0)
             
-            prediction_raw = model.predict(input_encoded)[0]
+            # Convert to float32 to match training data type
+            input_encoded = input_encoded.astype('float32')
+            
+            if model_type == 'xgboost':
+                # Use predict method directly
+                prediction_raw = models[model_type].predict(input_encoded)[0]
+            else:
+                prediction_raw = models[model_type].predict(input_encoded)[0]
             
             if isinstance(prediction_raw, (int, np.integer)):
                 label_map = {0: "P1", 1: "P2", 2: "P3", 3: "P4"}
@@ -760,5 +784,5 @@ def update_tips_content(*args):
     return tip_content.get(button_id, "")
 server = app.server 
 if __name__ == '__main__':
-   app.run(debug=False, port=8050)  
+   app.run(debug=False, port=8050)
 
