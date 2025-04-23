@@ -12,8 +12,7 @@ app = dash.Dash(
     external_scripts=[
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js'
     ],
-    suppress_callback_exceptions=True,
-    assets_ignore=".*"  # Disable caching for assets
+    suppress_callback_exceptions=True
 )
 app.title = "Credit Risk Predictor"
 
@@ -634,7 +633,7 @@ def toggle_model_selector(show):
     return {'display': 'none'}
 
 # === Run the app ===
-server = app.server  # <-- Add this line for Render compatibility
+server = app.server  # <-- Add this line for Render compatibility # Define a default port number
 if __name__ == '__main__':
-   app.run(debug=False, port=port)  # Set debug=False for production  
+   app.run(debug=False, port=8050)  # Set debug=False for production
 
