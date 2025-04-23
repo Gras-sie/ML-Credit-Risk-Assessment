@@ -8,7 +8,6 @@ import os
 import warnings
 import json
 
-# === Initialize Dash App ===
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -19,19 +18,17 @@ app = dash.Dash(
 )
 app.title = "Credit Risk Predictor"
 
-#Path Configuration
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
 model_paths = {
     "random_forest": os.path.join(project_root, "Artifacts", "PLK", "random_forest_model.pkl"),
-    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.json")  # Use .json format!
+    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.json")  
 }
 label_map_path = os.path.join(project_root, "Artifacts", "PLK", "label_mapping.json")
 columns_path = os.path.join(project_root, "Artifacts", "PLK", "training_columns.pkl")
 data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
 
-#Library Compatibility Checks
 try:
     import xgboost
 except ImportError:
@@ -45,12 +42,9 @@ if sklearn_version != expected_version:
         f"⚠️ scikit-learn version mismatch: expected {expected_version}, found {sklearn_version}. "
         "This could lead to compatibility issues when loading models."
     )
-
-#Load Models and Data
 try:
     models = {}
     
-    # Load label mapping for XGBoost
     with open(label_map_path) as f:
         label_mapping = json.load(f)
         
@@ -62,7 +56,6 @@ try:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"XGBoost model file not found: {path}")
             try:
-                # Initialize XGBoost classifier with same parameters
                 model = xgboost.XGBClassifier(
                     n_estimators=500,
                     eval_metric='mlogloss',
@@ -97,7 +90,6 @@ except FileNotFoundError as e:
     print(f" - Data   → {os.path.dirname(data_file_path)}")
     raise
 
-#Risk Flag to Description Helper
 def flag_to_risk(flag):
     return {
         "P1": "Low Risk - Likely Approved",
@@ -143,7 +135,7 @@ def predict_approval(n_clicks, model_type, age, gender, marital, education,
         for field, value in numeric_fields.items():
             try:
                 if value is not None:
-                    float(value)  # Test if convertible to float
+                    float(value) 
             except ValueError:
                 return html.Div(
                     f"Invalid value for {field}. Please enter a valid number.", 
