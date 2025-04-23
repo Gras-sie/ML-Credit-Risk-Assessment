@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import pickle
 import os
+import warnings
 
 app = dash.Dash(
     __name__,
@@ -11,7 +12,8 @@ app = dash.Dash(
     external_scripts=[
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js'
     ],
-    suppress_callback_exceptions=True
+    suppress_callback_exceptions=True,
+    assets_ignore=".*"  # Disable caching for assets
 )
 app.title = "Credit Risk Predictor"
 
@@ -25,11 +27,28 @@ model_paths = {
 data_file_path = os.path.join(risk_assessment_dir, 'SRC', 'credit_risk_features.csv')
 columns_path = os.path.join(risk_assessment_dir, 'Artifacts', 'PLK', 'training_columns.pkl')
 
+try:
+    import xgboost
+except ImportError:
+    print("Warning: xgboost library is not installed. XGBoost model will not be available.")
+    xgboost = None
+
+# Check scikit-learn version compatibility
+from sklearn import __version__ as sklearn_version
+if sklearn_version != "1.5.1":
+    warnings.warn(
+        f"Inconsistent scikit-learn version detected: {sklearn_version}. "
+        "Models were trained with version 1.5.1. This may cause issues."
+    )
+
 # Add error handling for file loading
 try:
     # Load models
     models = {}
     for key, path in model_paths.items():
+        if key == 'xgboost' and xgboost is None:
+            print(f"Skipping {key} model as xgboost is not installed.")
+            continue
         if not os.path.exists(path):
             raise FileNotFoundError(f"Model file not found: {path}")
         with open(path, 'rb') as f:
@@ -617,4 +636,5 @@ def toggle_model_selector(show):
 # === Run the app ===
 server = app.server  # <-- Add this line for Render compatibility
 if __name__ == '__main__':
-    app.run(debug=False, port=8050)  # Set debug=False for production
+   app.run(debug=False, port=port)  # Set debug=False for production  
+

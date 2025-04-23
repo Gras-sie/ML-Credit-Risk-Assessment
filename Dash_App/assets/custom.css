@@ -28,9 +28,7 @@
 .app-container {
     width: 100%;
     padding: 0 2rem;
-    background: linear-gradient(rgba(25, 34, 49, 0.95), rgba(25, 34, 49, 0.85)),
-                url('../assets/credit-bg.jpg') no-repeat center center fixed;
-    background-size: cover;
+    background: linear-gradient(rgba(25, 34, 49, 0.95), rgba(25, 34, 49, 0.85));
     min-height: 100vh;
     padding-bottom: 40px;
     color: var(--text-light);
