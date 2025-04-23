@@ -1,35 +1,90 @@
+:root {
+  --stormy: #494E6B;
+  --cloud: #98878F;
+  --sunset: #985E6D;
+  --evening: #192231;
+  --primary-gradient: linear-gradient(135deg, var(--stormy), var(--evening));
+  --secondary-gradient: linear-gradient(135deg, var(--cloud), var(--sunset));
+  --shadow-sm: 0 2px 4px rgba(25, 34, 49, 0.05);
+  --shadow-md: 0 4px 6px rgba(25, 34, 49, 0.1);
+  --shadow-lg: 0 10px 15px rgba(25, 34, 49, 0.1);
+  --primary-color: #1e88e5;
+  --secondary-color: #1565c0;
+  --text-dark: var(--evening);
+  --text-light: #fff;
+  --border-color: var(--cloud);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 .app-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-    background: #f8fafc;
+    width: 100%;
+    padding: 0 2rem;
+    background: linear-gradient(rgba(25, 34, 49, 0.95), rgba(25, 34, 49, 0.85)),
+                url('../assets/credit-bg.jpg') no-repeat center center fixed;
+    background-size: cover;
     min-height: 100vh;
     padding-bottom: 40px;
+    color: var(--text-light);
 }
 
 .header {
-    background: linear-gradient(135deg, #1e88e5, #1565c0);
+    background: var(--primary-gradient);
     color: white;
-    padding: 10px 0 10px 20px;
-    border-radius: 10px;
+    padding: 2rem;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .input-card {
-    background: white;
+    background: rgba(255, 255, 255, 0.95);
     border-radius: 10px;
     padding: 2rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid rgba(152, 135, 143, 0.2);
+    color: var(--text-dark);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .prediction-card, .comparison-card, .about-card {
-    background: white;
+    background: rgba(255, 255, 255, 0.95);
     border-radius: 10px;
     padding: 2rem;
     margin-top: 20px;
     text-align: center;
     box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border: 1px solid rgba(152, 135, 143, 0.2);
+    color: var(--text-dark);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.prediction-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.prediction-card {
+    opacity: 0;
+    transition: opacity 0.6s ease-out, transform 0.3s ease-out;
+}
+
+.prediction-card.fade-in {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .feature-card {
@@ -41,24 +96,25 @@
 
 .form-label {
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--text-dark);
     margin-bottom: 0.5rem;
 }
 
 .form-control {
-    border-radius: 8px;
-    border: 2px solid #e9ecef;
-    padding: 0.75rem;
+    border-radius: 6px;
+    border: 2px solid var(--border-color);
+    padding: 0.8rem 1rem;
     transition: border-color 0.15s ease-in-out;
+    background: #f8fafc;
 }
 
 .form-control:focus {
-    border-color: #1e88e5;
+    border-color: var(--primary-color);
     box-shadow: none;
 }
 
 .predict-button {
-    background: #1e88e5;
+    background: var(--primary-color);
     border: none;
     padding: 1rem 2rem;
     font-weight: 600;
@@ -67,14 +123,15 @@
 }
 
 .predict-button:hover {
-    background: #1565c0;
+    background: var(--secondary-color);
 }
 
 .prediction-result {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--text-dark);
     margin-top: 1rem;
+    animation: fadeIn 0.5s ease-in;
 }
 
 .loading-spinner {
@@ -88,7 +145,7 @@
 .tab-corner .nav-link {
     border-radius: 20px 20px 0 0;
     margin-left: 5px;
-    background: #e9ecef;
+    background: var(--border-color);
     color: #333;
 }
 
@@ -107,3 +164,76 @@
 .grade-c { color: #f1c40f; }
 .grade-d { color: #e67e22; }
 .grade-f { color: #e74c3c; }
+
+.navbar {
+    box-shadow: var(--shadow-sm);
+    background: var(--evening) !important;
+}
+
+.nav-link {
+    color: var(--cloud) !important;
+    transition: color 0.2s;
+}
+
+.nav-link:hover {
+    color: var(--text-light) !important;
+}
+
+.nav-link.active {
+    color: var(--text-light) !important;
+    font-weight: 500;
+}
+
+.invalid-feedback {
+    color: #dc3545;
+    font-size: 0.875rem;
+}
+
+.is-invalid {
+    border-color: #e74c3c !important;
+}
+
+.form-section {
+    animation: slideIn 0.5s ease-out forwards;
+}
+
+.btn-primary {
+    background: var(--stormy) !important;
+    border-color: var(--stormy) !important;
+}
+
+.btn-primary:hover {
+    background: var(--evening) !important;
+    border-color: var(--evening) !important;
+}
+
+.btn-info {
+    background: var(--sunset) !important;
+    border-color: var(--sunset) !important;
+    color: var(--text-light) !important;
+}
+
+.btn-info:hover {
+    background: var(--cloud) !important;
+    border-color: var(--cloud) !important;
+}
+
+@media (max-width: 768px) {
+    .header h1 { 
+        font-size: 2rem; 
+    }
+    .form-row { 
+        flex-direction: column; 
+    }
+    .app-container {
+        padding: 0 1rem;
+    }
+}
+
+@media (min-width: 992px) {
+    .prediction-card {
+        position: sticky;
+        top: 100px;
+        height: fit-content;
+    }
+}

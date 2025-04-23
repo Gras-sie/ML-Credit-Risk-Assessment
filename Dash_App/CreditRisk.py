@@ -184,39 +184,70 @@ def compare_models(n_clicks, age, gender, marital, education,
 
 # === Layout ===
 app.layout = dbc.Container([
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.H1("Credit Risk Predictor", className="display-4 mb-2"),
-                html.H6("Estimate credit approval potential based on client details", className="text-light"),
-            ], className="header"),
-        ], width=8),
-        dbc.Col([
-            # Tab corner in top right
-            dbc.Tabs(
-                id="main-tabs",
-                active_tab="tab-input",
-                children=[
-                    dbc.Tab(label="Predict", tab_id="tab-input", tab_class_name="tab-corner"),
-                    dbc.Tab(label="Compare & Tips", tab_id="tab-compare", tab_class_name="tab-corner"),
-                    dbc.Tab(label="About", tab_id="tab-about", tab_class_name="tab-corner"),
+    dbc.Navbar(
+        [
+            html.Img(src="/assets/images/logo.png", height="30px", className="me-2"),
+            dbc.NavbarBrand("Credit Risk Predictor", className="ms-2"),
+            dbc.Nav(
+                [
+                    dbc.NavLink("Predict", id="nav-predict", href="#predict", active=True),
+                    dbc.NavLink("Compare", id="nav-compare", href="#compare"),
+                    dbc.NavLink("About", id="nav-about", href="#about"),
                 ],
-                class_name="justify-content-end tab-corner-tabs"
+                className="ms-auto",
+                navbar=True,
             )
-        ], width=4, className="d-flex align-items-center justify-content-end")
-    ], className="align-items-center mt-2 mb-4"),
+        ],
+        color="primary",
+        dark=True,
+        sticky="top",
+    ),
+    html.Header([
+        html.Div([
+            html.H1("Credit Risk Predictor", className="display-4"),
+            html.P("Estimate credit approval potential based on client details", className="lead"),
+        ], className="header text-center py-4", **{"aria-label": "Application Header"})
+    ]),
 
-    html.Div(id="tab-content")
-], fluid=True, className="app-container")
+    # Main content with ARIA roles
+    html.Main([
+        html.Div(id="page-content", role="main", **{"aria-live": "polite"})
+    ]),
 
-# === Tab Content Callback ===
+    # Semantic footer
+    html.Footer(
+        "© 2024 Credit Risk Predictor | All rights reserved",
+        className="text-center py-3 mt-5 border-top"
+    )
+], fluid=True, className="app-container px-0")
+
 @app.callback(
-    Output("tab-content", "children"),
-    Input("main-tabs", "active_tab")
+    [Output("page-content", "children"),
+     Output("nav-predict", "active"),
+     Output("nav-compare", "active"),
+     Output("nav-about", "active")],
+    [Input("nav-predict", "n_clicks"),
+     Input("nav-compare", "n_clicks"),
+     Input("nav-about", "n_clicks")]
 )
-def render_tab_content(active_tab):
-    if active_tab == "tab-input":
-        return dbc.Row([
+def toggle_active_nav(predict_clicks, compare_clicks, about_clicks):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return render_predict_page(), True, False, False
+    
+    clicked = ctx.triggered[0]["prop_id"].split(".")[0]
+    if clicked == "nav-predict":
+        return render_predict_page(), True, False, False
+    elif clicked == "nav-compare":
+        return render_compare_page(), False, True, False
+    elif clicked == "nav-about":
+        return render_about_page(), False, False, True
+    
+    return render_predict_page(), True, False, False
+
+def render_predict_page():
+    return html.Section([  # Using semantic section
+        dbc.Row([
             # Input Section (left)
             dbc.Col([
                 dbc.Card([
@@ -224,7 +255,11 @@ def render_tab_content(active_tab):
                         html.H4("Applicant Information", className="card-title mb-4"),
 
                         # Step 1 - Personal
-                        html.H5("Step 1: Personal Details", className="mt-3"),
+                        html.H5([
+                            html.I(className="fas fa-user me-2"),  # Add FontAwesome icons
+                            "Step 1: Personal Details"
+                        ], className="mt-3"),
+                        html.Hr(className="my-4"),
                         dbc.Row([
                             dbc.Col([
                                 html.Label("Age"),
@@ -255,7 +290,11 @@ def render_tab_content(active_tab):
                         ], className="mb-3"),
 
                         # Step 2 - Employment
-                        html.H5("Step 2: Employment & Income", className="mt-3"),
+                        html.H5([
+                            html.I(className="fas fa-briefcase me-2"),  # Add FontAwesome icons
+                            "Step 2: Employment & Income"
+                        ], className="mt-3"),
+                        html.Hr(className="my-4"),
                         dbc.Row([
                             dbc.Col([
                                 html.Label("Net Monthly Income (ZAR)"),
@@ -268,7 +307,11 @@ def render_tab_content(active_tab):
                         ], className="mb-3"),
 
                         # Step 3 - Product Flags
-                        html.H5("Step 3: Loan Ownership", className="mt-3"),
+                        html.H5([
+                            html.I(className="fas fa-credit-card me-2"),  # Add FontAwesome icons
+                            "Step 3: Loan Ownership"
+                        ], className="mt-3"),
+                        html.Hr(className="my-4"),
                         dbc.Row([
                             dbc.Col([
                                 html.Label("Has Credit Card?"),
@@ -301,7 +344,11 @@ def render_tab_content(active_tab):
                         ], className="mb-3"),
 
                         # Step 4 - Credit History
-                        html.H5("Step 4: Credit Info", className="mt-3"),
+                        html.H5([
+                            html.I(className="fas fa-history me-2"),  # Add FontAwesome icons
+                            "Step 4: Credit Info"
+                        ], className="mt-3"),
+                        html.Hr(className="my-4"),
                         dbc.Row([
                             dbc.Col([
                                 html.Label("Credit Score"),
@@ -369,35 +416,36 @@ def render_tab_content(active_tab):
                     ])
                 ], className="prediction-card")
             ], width=12, lg=6)
-        ])
-    elif active_tab == "tab-compare":
-        return dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4("Model Comparison", className="card-title mb-4"),
-                        dbc.Button("Compare Models", id="compare-button", color="info", className="mb-3"),
-                        html.Div(id="comparison-output"),
-                        html.Hr(),
-                        html.H5("Tips & Best Practices", className="mt-4"),
-                        html.Div(id="tips-output", className="tips-list")
-                    ])
-                ], className="comparison-card")
-            ], width=12, lg=8)
-        ], className="justify-content-center")
-    elif active_tab == "tab-about":
-        return dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4("About", className="card-title mb-4"),
-                        html.P("This section will contain information about the Credit Risk Predictor app, its purpose, and the team behind it. (To be updated)")
-                    ])
-                ], className="about-card")
-            ], width=12, lg=8)
-        ], className="justify-content-center")
-    else:
-        return html.Div()
+        ], className="g-4 form-section")
+    ], id="predict", **{"aria-label": "Prediction Form Section"})
+
+def render_compare_page():
+    return dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H4("Model Comparison", className="card-title mb-4"),
+                    dbc.Button("Compare Models", id="compare-button", color="info", className="mb-3"),
+                    html.Div(id="comparison-output"),
+                    html.Hr(),
+                    html.H5("Tips & Best Practices", className="mt-4"),
+                    html.Div(id="tips-output", className="tips-list")
+                ])
+            ], className="comparison-card")
+        ], width=12, lg=8)
+    ], className="g-4 justify-content-center")
+
+def render_about_page():
+    return dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H4("About", className="card-title mb-4"),
+                    html.P("This section will contain information about the Credit Risk Predictor app, its purpose, and the team behind it. (To be updated)")
+                ])
+            ], className="about-card")
+        ], width=12, lg=8)
+    ], className="g-4 justify-content-center")
 
 # === Callback to Show/Hide Model Selection ===
 @app.callback(
