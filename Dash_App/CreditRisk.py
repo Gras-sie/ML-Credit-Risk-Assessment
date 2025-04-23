@@ -8,6 +8,7 @@ import os
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Credit Risk Predictor"
 
+
 # === Paths ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
 model_paths = {
@@ -288,5 +289,6 @@ def toggle_model_selector(show):
     return {'display': 'none'}
 
 # === Run the app ===
+server = app.server  # <-- Add this line for Render compatibility
 if __name__ == '__main__':
-    app.run(debug=True, port=8050)
+    app.run(debug=False, port=8050)  # Set debug=False for production

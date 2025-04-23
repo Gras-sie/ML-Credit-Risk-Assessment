@@ -1,2 +1,2 @@
-web: gunicorn Dash_App.Bright:server
+web: gunicorn Dash_App.CreditRisk:server
 
