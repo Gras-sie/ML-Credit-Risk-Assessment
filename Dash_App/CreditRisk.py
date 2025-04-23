@@ -6,39 +6,47 @@ import pickle
 import os
 import warnings
 
+# === Initialize Dash App ===
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     external_scripts=[
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js'
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"
     ],
     suppress_callback_exceptions=True
 )
 app.title = "Credit Risk Predictor"
 
-# === Paths ===
+# === Define Paths ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
-risk_assessment_dir = os.path.dirname(current_dir)  # Get Risk_Assessment directory
-model_paths = {
-    'random_forest': os.path.join(risk_assessment_dir, 'Artifacts', 'PLK', 'random_forest_model.pkl'),
-    'xgboost': os.path.join(risk_assessment_dir, 'Artifacts', 'PLK', 'xgboost_model.pkl')
-}
-data_file_path = os.path.join(risk_assessment_dir, 'SRC', 'credit_risk_features.csv')
-columns_path = os.path.join(risk_assessment_dir, 'Artifacts', 'PLK', 'training_columns.pkl')
+project_root = os.path.dirname(current_dir)
 
+model_paths = {
+    "random_forest": os.path.join(project_root, "Artifacts", "PLK", "random_forest_model.pkl"),
+    "xgboost": os.path.join(project_root, "Artifacts", "PLK", "xgboost_model.pkl")  # Can update to .json if needed
+}
+
+data_file_path = os.path.join(project_root, "SRC", "credit_risk_features.csv")
+columns_path = os.path.join(project_root, "Artifacts", "PLK", "training_columns.pkl")
+
+# === Optional: Import XGBoost Safely ===
 try:
     import xgboost
 except ImportError:
-    print("Warning: xgboost library is not installed. XGBoost model will not be available.")
+    print("⚠️ Warning: xgboost is not installed. The XGBoost model will not be available.")
     xgboost = None
 
-# Check scikit-learn version compatibility
+# === Version Compatibility Check for scikit-learn ===
 from sklearn import __version__ as sklearn_version
-if sklearn_version != "1.5.1":
+expected_sklearn_version = "1.5.1"
+
+if sklearn_version != expected_sklearn_version:
     warnings.warn(
-        f"Inconsistent scikit-learn version detected: {sklearn_version}. "
-        "Models were trained with version 1.5.1. This may cause issues."
+        f"⚠️ Inconsistent scikit-learn version: {sklearn_version}. "
+        f"The models were trained using scikit-learn {expected_sklearn_version}. "
+        f"This mismatch may lead to loading or prediction issues."
     )
+
 
 # Add error handling for file loading
 try:
